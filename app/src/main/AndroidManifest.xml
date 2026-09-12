@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.aistudio.cinestream.xyzabc.extensions.amine4up">
+    package="com.aistudio.cinestream.xyzabc.extensions.anime4up">
     <!-- لا نحتاج إلى صلاحية إنترنت هنا، لأن التطبيق الأساسي هو من يقوم بالاتصال -->
     
     <application
