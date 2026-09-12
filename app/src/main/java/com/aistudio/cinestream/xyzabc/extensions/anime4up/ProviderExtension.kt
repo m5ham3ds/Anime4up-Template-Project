@@ -1,28 +1,48 @@
 package com.aistudio.cinestream.xyzabc.extensions.anime4up
 
 /**
- * هذه هي الواجهة (Interface) الأساسية.
- * لا تقم بتعديل هذا الملف أبداً.
- * كل إضافة جديدة يجب أن "تَرِث" (Implement) هذه الواجهة وتوفر القيم الخاصة بها.
+ * الواجهة الأساسية لأي إضافة في التطبيق.
+ * كل إضافة جديدة يجب أن تُنفّذ هذه الواجهة.
  */
 interface ProviderExtension {
-    // معلومات أساسية عن الإضافة يقرأها التطبيق لعرضها للمستخدم
+
+    /** معرّف فريد للإضافة (بالإنجليزية، بدون مسافات) */
     val id: String
+
+    /** اسم الإضافة المعروض للمستخدم */
     val name: String
+
+    /** الرابط الأساسي للموقع */
     val baseUrl: String
-    
-    // نوع المحتوى الذي يدعمه الموقع
+
+    /** هل تدعم الأنمي؟ */
     val isAnime: Boolean
+
+    /** هل تدعم الأفلام؟ */
     val isMovie: Boolean
+
+    /** هل تدعم المسلسلات؟ */
     val isSeries: Boolean
-    
-    // لغة الإضافة وأيقونتها (إن وجدت)
+
+    /** لغة الإضافة (ar, en, ...) */
     val lang: String
+
+    /** رابط أيقونة الإضافة */
     val iconUrl: String
 
-    // الدالة المسؤولة عن بناء رابط البحث الخاص بالموقع
+    /**
+     * بناء رابط البحث.
+     * @param titleOriginal العنوان الأصلي (إنجليزي عادةً)
+     * @param titleClean    العنوان بعد التنظيف
+     */
     fun getSearchUrl(titleOriginal: String, titleClean: String): String
-    
-    // الدالة المسؤولة عن إرسال كود الجافا سكريبت الذي سيعمل داخل المتصفح المخفي
+
+    /**
+     * كود JavaScript الذي سيُحقن داخل WebView لاستخراج السيرفرات.
+     * يجب أن يستدعي:
+     *   AndroidBridge.sendServersV2(jsonString, currentUrl)
+     * أو:
+     *   AndroidBridge.sendFailed()
+     */
     fun getExtractionScript(isMovie: Boolean, episode: Int, title: String): String
 }
