@@ -8,7 +8,7 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.aistudio.cinestream.xyzabc.extensions.anime4up.providers"
+        applicationId = "com.aistudio.cinestream.xyzabc.extensions.anime4up"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
