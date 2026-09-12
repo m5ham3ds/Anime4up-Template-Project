@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.aistudio.cinestream.xyzabc.extensions.amine4up">
+    <!-- لا نحتاج إلى صلاحية إنترنت هنا، لأن التطبيق الأساسي هو من يقوم بالاتصال -->
+    
+    <application
+        android:allowBackup="false"
+        android:supportsRtl="true"
+        android:hasCode="true"
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round">
+        <!-- 🔴 لا يوجد Activity هنا عمداً. هذه إضافة تعمل في الخلفية فقط ولا تظهر في قائمة التطبيقات -->
+    </application>
+
+</manifest>
