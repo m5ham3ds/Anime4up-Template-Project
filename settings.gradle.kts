@@ -1,17 +1,18 @@
 pluginManagement {
     repositories {
-        google()
+        google()          // ✅ مهم جداً
         mavenCentral()
         gradlePluginPortal()
     }
 }
+
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        google()
+        google()          // ✅ مهم جداً
         mavenCentral()
     }
 }
 
-rootProject.name = "ExtensionTemplate"
+rootProject.name = "Anime4up"
 include(":app")
