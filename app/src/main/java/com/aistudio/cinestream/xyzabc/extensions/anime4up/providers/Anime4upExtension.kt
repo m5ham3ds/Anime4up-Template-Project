@@ -1,10 +1,9 @@
-package com.aistudio.cinestream.xyzabc.extensions.anime4up.providers
+package com.aistudio.cinestream.xyzabc.extensions.anime4up
 
-import com.aistudio.cinestream.xyzabc.extensions.anime4up.ProviderExtension
+import com.example.extensions.ProviderExtension
 import java.net.URLEncoder
 
 class Anime4upExtension : ProviderExtension {
-
     override val id: String = "anime4up"
     override val name: String = "أنمي فور أب"
     override val baseUrl: String = "https://w1.anime4up.rest"
@@ -12,46 +11,34 @@ class Anime4upExtension : ProviderExtension {
     override val isMovie: Boolean = true
     override val isSeries: Boolean = true
     override val lang: String = "ar"
-    override val iconUrl: String =
-        "https://w1.anime4up.rest/wp-content/uploads/2019/03/Anime4up-Icon-1.png"
+    override val iconUrl: String = "https://w1.anime4up.rest/wp-content/uploads/2019/03/Anime4up-Icon-1.png"
 
-    // ============================================================
-    //  البحث
-    // ============================================================
+    // 1. الدالة الأولى: إعطاء التطبيق الأساسي رابط البحث
     override fun getSearchUrl(titleOriginal: String, titleClean: String): String {
         return "$baseUrl/?s=" + URLEncoder.encode(titleClean, "UTF-8")
     }
 
-    // ============================================================
-    //  سكريبت الاستخراج الرئيسي
-    //  ⚠️ قاعدة ذهبية: المصدر الوحيد هو ul#episode-servers li[data-watch]
-    //  ⚠️ ممنوع لمس #download أو .download-list أو <table> نهائياً
-    // ============================================================
+    // 2. الدالة الثانية: إعطاء التطبيق الأساسي سكريبت الـ JS الذي سيقوم بالباقي
     override fun getExtractionScript(
         isMovie: Boolean,
         episode: Int,
         title: String
     ): String {
         val safeTitle = escapeForJs(title)
-
+        
         return """
             (function() {
                 'use strict';
 
-                // ============================================
-                //  إعدادات
-                // ============================================
                 var A4UP_TITLE         = "$safeTitle";
                 var A4UP_EPISODE       = $episode;
                 var A4UP_IS_MOVIE      = $isMovie;
 
                 var A4UP_SENT          = false;
-                var A4UP_MAX_ATTEMPTS  = 30;   // 30 × 500ms = 15 ثانية
+                var A4UP_MAX_ATTEMPTS  = 30;
                 var A4UP_INTERVAL_MS   = 500;
 
-                // ============================================
-                //  إرسال النتائج للتطبيق
-                // ============================================
+                // إرسال البيانات للتطبيق الأساسي
                 function a4upSend(items) {
                     if (A4UP_SENT) return;
                     if (typeof AndroidBridge === 'undefined') return;
@@ -70,9 +57,6 @@ class Anime4upExtension : ProviderExtension {
                     }
                 }
 
-                // ============================================
-                //  أدوات مساعدة
-                // ============================================
                 function a4upClean(txt) {
                     if (!txt) return '';
                     return String(txt).replace(/\s+/g, ' ').trim();
@@ -88,43 +72,24 @@ class Anime4upExtension : ProviderExtension {
                     return m ? parseInt(m[1], 10) : 0;
                 }
 
-                // ============================================
-                //  فلتر روابط التنزيل — صرامة عالية جداً
-                // ============================================
                 function a4upIsDownloadUrl(url) {
                     if (!url) return true;
                     var u = String(url).toLowerCase();
-
-                    // 1) نطاقات تنزيل معروفة (مع مسارات /d/ أو /download)
                     var downloadPatterns = [
-                        'megamax.me/d/',
-                        'megamax.me/download',
-                        'mega.nz/#!',
-                        'mega.nz/#F!',
-                        'gofile.io/d/',
-                        'file-upload.org',
-                        'mediafire.com/file',
-                        'workupload.com/file',
-                        'dsvplay.com/d/',
-                        'streamruby.com/d/',
-                        'mp4upload.com/d/',
-                        'uqload.is/d/',
-                        'uqload.vc/d/'
+                        'megamax.me/d/', 'megamax.me/download', 'mega.nz/#!', 'mega.nz/#F!',
+                        'gofile.io/d/', 'file-upload.org', 'mediafire.com/file',
+                        'workupload.com/file', 'dsvplay.com/d/', 'streamruby.com/d/',
+                        'mp4upload.com/d/', 'uqload.is/d/', 'uqload.vc/d/'
                     ];
                     for (var i = 0; i < downloadPatterns.length; i++) {
                         if (u.indexOf(downloadPatterns[i]) !== -1) return true;
                     }
-
-                    // 2) مسارات تنزيل عامة
                     if (u.indexOf('/download/') !== -1) return true;
                     if (u.indexOf('/download?') !== -1) return true;
-
                     return false;
                 }
 
-                // ============================================
-                //  اختيار أفضل تطابق من نتائج البحث
-                // ============================================
+                // الخطوة الأولى: البحث عن الأنمي الصحيح في صفحة نتائج البحث
                 function a4upFindBestMatch(searchTitle) {
                     var cards = document.querySelectorAll('.anime-card-themex');
                     if (!cards || cards.length === 0) {
@@ -171,17 +136,12 @@ class Anime4upExtension : ProviderExtension {
                             bestLink  = linkEl;
                         }
                     }
-
                     if (words.length > 0 && bestScore >= 1) return bestLink;
                     return firstLink || bestLink;
                 }
 
-                // ============================================
-                //  المرحلة 1: صفحة البحث
-                // ============================================
                 function a4upHandleSearch() {
                     if (!A4UP_TITLE) { a4upSend([]); return; }
-
                     var attempts = 0;
                     var max = 20;
                     var iv = setInterval(function() {
@@ -199,32 +159,25 @@ class Anime4upExtension : ProviderExtension {
                     }, 500);
                 }
 
-                // ============================================
-                //  المرحلة 2: صفحة الأنمي
-                // ============================================
+                // الخطوة الثانية: النقر على الحلقة الصحيحة من داخل صفحة الأنمي
                 function a4upHandleAnimePage() {
                     if (document.querySelector('#episode-servers')) {
                         a4upHandleEpisodePage();
                         return;
                     }
-
                     var targetEp = parseInt(A4UP_EPISODE) || 1;
-
                     var anchors = document.querySelectorAll(
                         '#episodesList .anime-card-themex .ep_num a, ' +
                         '#episodesList .anime-card-themex a.overlay'
                     );
                     if (!anchors || anchors.length === 0) {
-                        anchors = document.querySelectorAll(
-                            '#ULEpisodesList li a, .all-episodes-list li a'
-                        );
+                        anchors = document.querySelectorAll('#ULEpisodesList li a, .all-episodes-list li a');
                     }
                     if (!anchors || anchors.length === 0) {
                         a4upSend([]);
                         return;
                     }
-
-                    // إزالة التكرار
+                    
                     var seen = {};
                     var unique = [];
                     for (var i = 0; i < anchors.length; i++) {
@@ -244,13 +197,10 @@ class Anime4upExtension : ProviderExtension {
 
                     var found = null;
                     for (var j = 0; j < anchors.length; j++) {
-                        var txt = a4upClean(
-                            anchors[j].textContent || anchors[j].innerText || ''
-                        );
+                        var txt = a4upClean(anchors[j].textContent || anchors[j].innerText || '');
                         var num = a4upExtractEpisodeNumber(txt);
                         if (num === targetEp) { found = anchors[j]; break; }
                     }
-
                     var chosen = found || anchors[0];
                     if (chosen) {
                         try { chosen.click(); }
@@ -260,16 +210,11 @@ class Anime4upExtension : ProviderExtension {
                     }
                 }
 
-                // ============================================
-                //  المرحلة 3: صفحة الحلقة (الأهم)
-                //  المصدر: #episode-servers li[data-watch] حصراً
-                // ============================================
+                // الخطوة الثالثة والأخيرة: استخراج سيرفرات المشاهدة والتحميل من صفحة الحلقة
                 function a4upHandleEpisodePage() {
                     var attempt = 0;
-
                     function tryExtract() {
                         attempt++;
-
                         var container = document.getElementById('episode-servers');
                         if (!container) {
                             if (attempt < A4UP_MAX_ATTEMPTS) {
@@ -288,50 +233,47 @@ class Anime4upExtension : ProviderExtension {
 
                         for (var i = 0; i < lis.length; i++) {
                             var li = lis[i];
-
-                            // (أ) يجب أن يحتوي data-watch
                             if (!li.hasAttribute('data-watch')) continue;
-
                             var watchUrl = a4upClean(li.getAttribute('data-watch'));
                             if (!watchUrl || watchUrl.indexOf('http') !== 0) continue;
-
-                            // (ب) استبعاد روابط التنزيل
                             if (a4upIsDownloadUrl(watchUrl)) continue;
 
-                            // (ج) الاسم
                             var nameEl = li.querySelector('.watch-server-name');
-                            var name = nameEl
-                                ? a4upClean(nameEl.textContent || nameEl.innerText)
-                                : '';
+                            var name = nameEl ? a4upClean(nameEl.textContent || nameEl.innerText) : '';
                             if (!name) {
                                 var alt = li.querySelector('.ser, .server-name');
                                 if (alt) name = a4upClean(alt.textContent || alt.innerText);
                             }
                             if (!name) name = 'سيرفر ' + (i + 1);
 
-                            // (د) الجودة
-                            var qEl = li.querySelector('.quality');
-                            var quality = qEl
-                                ? a4upClean(qEl.textContent || qEl.innerText)
-                                : '';
-
-                            // (هـ) مميز
-                            var featured = li.classList.contains('watch-server-featured');
-
-                            // (و) منع التكرار
                             var dup = false;
                             for (var r = 0; r < items.length; r++) {
                                 if (items[r].url === watchUrl) { dup = true; break; }
                             }
                             if (dup) continue;
 
-                            // ⚠️ المفاتيح بالإنجليزية لتطابق ServerJsonParser
                             items.push({
                                 name: name,
-                                url: watchUrl,
-                                quality: quality,
-                                featured: featured
+                                url: watchUrl
                             });
+                        }
+                        
+                        // استخراج روابط التحميل
+                        var downloadLinks = document.querySelectorAll('#download .table tbody tr');
+                        for (var d = 0; d < downloadLinks.length; d++) {
+                            var tr = downloadLinks[d];
+                            var linkEl = tr.querySelector('.td-link a');
+                            var serverEl = tr.querySelector('.server-name');
+                            
+                            var downloadUrl = linkEl ? linkEl.getAttribute('href') : '';
+                            if (downloadUrl) {
+                                var serverName = serverEl ? a4upClean(serverEl.textContent || serverEl.innerText) : "Download";
+                                items.push({
+                                    // نضع (تحميل) في الاسم ليتعرف عليه التطبيق ويضعه في قسم التحميلات
+                                    name: serverName + " (تحميل)",
+                                    url: downloadUrl
+                                });
+                            }
                         }
 
                         if (items.length > 0) {
@@ -345,13 +287,10 @@ class Anime4upExtension : ProviderExtension {
                             a4upSend([]);
                         }
                     }
-
                     tryExtract();
                 }
 
-                // ============================================
-                //  تحديد نوع الصفحة والبدء
-                // ============================================
+                // تشغيل السكريبت بناءً على نوع الصفحة الحالية
                 function a4upBoot() {
                     var host   = window.location.hostname;
                     var path   = window.location.pathname;
@@ -363,27 +302,18 @@ class Anime4upExtension : ProviderExtension {
                     }
 
                     try {
-                        // 1) صفحة الحلقة
-                        if (document.querySelector('#episode-servers') ||
-                            path.indexOf('/episode/') !== -1) {
+                        if (document.querySelector('#episode-servers') || path.indexOf('/episode/') !== -1) {
                             a4upHandleEpisodePage();
                             return;
                         }
-
-                        // 2) صفحة البحث
                         if (/[?&]s=/.test(search)) {
                             a4upHandleSearch();
                             return;
                         }
-
-                        // 3) صفحة الأنمي
-                        if (document.querySelector('#episodesList') ||
-                            document.querySelector('.anime-info-container') ||
-                            path.indexOf('/anime/') !== -1) {
+                        if (document.querySelector('#episodesList') || document.querySelector('.anime-info-container') || path.indexOf('/anime/') !== -1) {
                             a4upHandleAnimePage();
                             return;
                         }
-
                         a4upSend([]);
                     } catch (err) {
                         a4upSend([]);
@@ -395,9 +325,6 @@ class Anime4upExtension : ProviderExtension {
         """.trimIndent()
     }
 
-    // ============================================================
-    //  Helper: تنظيف النص لتمريره داخل JavaScript
-    // ============================================================
     private fun escapeForJs(s: String): String {
         return s.replace("\\", "\\\\")
             .replace("\"", "\\\"")
