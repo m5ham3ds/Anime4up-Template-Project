@@ -1,6 +1,6 @@
 package com.aistudio.cinestream.xyzabc.extensions.anime4up
 
-import com.example.extensions.ProviderExtension
+import com.aistudio.cinestream.xyzabc.extensions.anime4up.ProviderExtension
 import java.net.URLEncoder
 
 class Anime4upExtension : ProviderExtension {
