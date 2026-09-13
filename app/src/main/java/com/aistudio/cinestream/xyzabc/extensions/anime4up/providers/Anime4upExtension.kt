@@ -1,8 +1,7 @@
-package com.aistudio.cinestream.xyzabc.extensions.anime4up
+package com.aistudio.cinestream.xyzabc.extensions.anime4up.providers
 
-import com.example.extensions.ProviderExtension
+import com.aistudio.cinestream.xyzabc.extensions.anime4up.ProviderExtension
 import java.net.URLEncoder
-
 class Anime4upExtension : ProviderExtension {
     override val id: String = "anime4up"
     override val name: String = "أنمي فور أب"
