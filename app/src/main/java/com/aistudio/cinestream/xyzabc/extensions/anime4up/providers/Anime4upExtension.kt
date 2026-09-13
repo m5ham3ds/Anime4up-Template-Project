@@ -1,6 +1,6 @@
-package com.aistudio.cinestream.xyzabc.extensions.anime4up.providers
+package com.aistudio.cinestream.xyzabc.extensions.anime4up
 
-import com.aistudio.cinestream.xyzabc.extensions.anime4up.ProviderExtension
+import com.example.extensions.ProviderExtension
 import java.net.URLEncoder
 
 class Anime4upExtension : ProviderExtension {
@@ -25,7 +25,7 @@ class Anime4upExtension : ProviderExtension {
         title: String
     ): String {
         val safeTitle = escapeForJs(title)
-        
+
         return """
             (function() {
                 'use strict';
@@ -35,7 +35,8 @@ class Anime4upExtension : ProviderExtension {
                 var A4UP_IS_MOVIE      = $isMovie;
 
                 var A4UP_SENT          = false;
-                var A4UP_MAX_ATTEMPTS  = 30;
+                // ✅ رُفعت المهلة من 30 إلى 60 محاولة (30 ثانية)
+                var A4UP_MAX_ATTEMPTS  = 60;
                 var A4UP_INTERVAL_MS   = 500;
 
                 // إرسال البيانات للتطبيق الأساسي
@@ -177,7 +178,7 @@ class Anime4upExtension : ProviderExtension {
                         a4upSend([]);
                         return;
                     }
-                    
+
                     var seen = {};
                     var unique = [];
                     for (var i = 0; i < anchors.length; i++) {
@@ -210,7 +211,10 @@ class Anime4upExtension : ProviderExtension {
                     }
                 }
 
-                // الخطوة الثالثة والأخيرة: استخراج سيرفرات المشاهدة والتحميل من صفحة الحلقة
+                // ============================================================
+                // الخطوة الثالثة والأخيرة: استخراج سيرفرات المشاهدة فقط
+                // ملاحظة: تم حذف كتلة #download نهائياً — لا نريد روابط تحميل
+                // ============================================================
                 function a4upHandleEpisodePage() {
                     var attempt = 0;
                     function tryExtract() {
@@ -226,7 +230,12 @@ class Anime4upExtension : ProviderExtension {
                         }
 
                         var items = [];
-                        var lis = container.querySelectorAll(':scope > li');
+
+                        // ✅ استخراج موثوق لأبناء <ul> المباشرين (بدل :scope)
+                        var lis = Array.prototype.filter.call(
+                            container.children,
+                            function (el) { return el.tagName === 'LI'; }
+                        );
                         if (!lis || lis.length === 0) {
                             lis = container.querySelectorAll('li');
                         }
@@ -234,8 +243,11 @@ class Anime4upExtension : ProviderExtension {
                         for (var i = 0; i < lis.length; i++) {
                             var li = lis[i];
                             if (!li.hasAttribute('data-watch')) continue;
+
                             var watchUrl = a4upClean(li.getAttribute('data-watch'));
                             if (!watchUrl || watchUrl.indexOf('http') !== 0) continue;
+
+                            // حماية إضافية ضد أي رابط تحميل تسلل
                             if (a4upIsDownloadUrl(watchUrl)) continue;
 
                             var nameEl = li.querySelector('.watch-server-name');
@@ -246,6 +258,7 @@ class Anime4upExtension : ProviderExtension {
                             }
                             if (!name) name = 'سيرفر ' + (i + 1);
 
+                            // إزالة التكرار
                             var dup = false;
                             for (var r = 0; r < items.length; r++) {
                                 if (items[r].url === watchUrl) { dup = true; break; }
@@ -257,24 +270,8 @@ class Anime4upExtension : ProviderExtension {
                                 url: watchUrl
                             });
                         }
-                        
-                        // استخراج روابط التحميل
-                        var downloadLinks = document.querySelectorAll('#download .table tbody tr');
-                        for (var d = 0; d < downloadLinks.length; d++) {
-                            var tr = downloadLinks[d];
-                            var linkEl = tr.querySelector('.td-link a');
-                            var serverEl = tr.querySelector('.server-name');
-                            
-                            var downloadUrl = linkEl ? linkEl.getAttribute('href') : '';
-                            if (downloadUrl) {
-                                var serverName = serverEl ? a4upClean(serverEl.textContent || serverEl.innerText) : "Download";
-                                items.push({
-                                    // نضع (تحميل) في الاسم ليتعرف عليه التطبيق ويضعه في قسم التحميلات
-                                    name: serverName + " (تحميل)",
-                                    url: downloadUrl
-                                });
-                            }
-                        }
+
+                        // ✅ لا وجود لأي كتلة #download هنا — تم حذفها نهائياً
 
                         if (items.length > 0) {
                             a4upSend(items);
@@ -296,8 +293,9 @@ class Anime4upExtension : ProviderExtension {
                     var path   = window.location.pathname;
                     var search = window.location.search || '';
 
+                    // ✅ إذا غادرنا نطاق الموقع — لا نرسل شيئاً ونتوكّل على التطبيق
+                    // (إرسال [] هنا كان يسبب "فشل جلب السيرفرات" الزائف)
                     if (host.indexOf('anime4up') === -1) {
-                        a4upSend([]);
                         return;
                     }
 
@@ -310,7 +308,9 @@ class Anime4upExtension : ProviderExtension {
                             a4upHandleSearch();
                             return;
                         }
-                        if (document.querySelector('#episodesList') || document.querySelector('.anime-info-container') || path.indexOf('/anime/') !== -1) {
+                        if (document.querySelector('#episodesList') ||
+                            document.querySelector('.anime-info-container') ||
+                            path.indexOf('/anime/') !== -1) {
                             a4upHandleAnimePage();
                             return;
                         }
