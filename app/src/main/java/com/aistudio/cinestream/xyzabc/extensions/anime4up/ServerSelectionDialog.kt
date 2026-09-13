@@ -1,7 +1,9 @@
 package com.aistudio.cinestream.xyzabc.extensions.anime4up
 
+// ✅ الاستيرادات تبقى كما هي
 import com.aistudio.cinestream.xyzabc.extensions.anime4up.models.ServerItem
 import com.aistudio.cinestream.xyzabc.extensions.anime4up.models.VideoQuality
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,10 +25,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -59,32 +61,10 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 // ============================================================
-//  نماذج البيانات
+//  حالة الواجهة
+//  ملاحظة: ServerItem و VideoQuality مُستوردان من models/ — لا نُعرِّف هنا
 // ============================================================
 
-/**
- * يمثّل سيرفر مشاهدة واحد قادم من الموقع.
- */
-data class ServerItem(
-    val name: String,
-    val url: String,
-    val quality: String? = null,
-    val isFeatured: Boolean = false
-)
-
-/**
- * يمثّل جودة فيديو نهائية بعد الاستخراج.
- */
-data class VideoQuality(
-    val label: String,
-    val url: String,
-    val isDirect: Boolean,
-    val headers: Map<String, String> = emptyMap()
-)
-
-/**
- * حالة الواجهة.
- */
 sealed class DialogState {
     object LoadingServers : DialogState()
     data class ServersReady(val servers: List<ServerItem>) : DialogState()
@@ -150,9 +130,9 @@ fun ServerSelectionDialog(
     var state by remember { mutableStateOf<DialogState>(DialogState.LoadingServers) }
     val extractor = remember { VideoExtractor(context) }
 
-    // تنظيف عند الإغلاق
-    LaunchedEffect(Unit) {
-        // عند أول ظهور، حلّل السيرفرات
+    // ✅ مربوط بـ serversJson — يُعاد التحليل عند تغيّر السيرفرات
+    LaunchedEffect(serversJson) {
+        state = DialogState.LoadingServers
         val parsed = withContext(Dispatchers.Default) {
             ServerJsonParser.parse(serversJson)
         }
