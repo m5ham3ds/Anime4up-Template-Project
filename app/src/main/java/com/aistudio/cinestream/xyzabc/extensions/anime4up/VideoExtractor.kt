@@ -41,34 +41,34 @@ import java.util.concurrent.atomic.AtomicBoolean
 class VideoExtractor(
     private val context: Context,
     private val userAgent: String = DEFAULT_USER_AGENT,
-    // ✅ قللنا المهلة من 25 ثانية إلى 12 — يكفي للمواقع المستهدفة
     private val timeoutMs: Long = DEFAULT_TIMEOUT_MS
 ) {
 
-    companion object {
+    companion object {                                    // ← ابدأ هنا
         private const val TAG = "VideoExtractor"
 
         const val DEFAULT_USER_AGENT =
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 " +
                     "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
 
-        // ✅ 12 ثانية بدل 25
         const val DEFAULT_TIMEOUT_MS = 12_000L
 
-        // عدد محاولات المسح المتكرر (فواصل تصاعدية تصل إلى ~8 ثوان)
         private const val MAX_SCAN_ATTEMPTS = 12
 
         private val DIRECT_VIDEO_EXTENSIONS = listOf(
             ".m3u8", ".mp4", ".mpd", ".webm", ".mkv", ".ts"
         )
 
-        // نطاقات معروفة توفر روابط مباشرة عبر XHR/JS وليس in <video src>
+        // ✅ ضع JS_HEAVY_HOSTS هنا — مباشرة بعد DIRECT_VIDEO_EXTENSIONS
         private val JS_HEAVY_HOSTS = listOf(
             "voe.sx", "mp4upload.com", "streamruby.com", "rubyvidhub.com",
             "playmogo.com", "dsvplay.com", "uqload.vc", "uqload.is",
-            "share4max.com", "videa.hu", "vkvideo.ru", "vk.com"
+            "share4max.com", "videa.hu", "vkvideo.ru", "vk.com",
+            "1i2cqoi.shop", "anime4up-S1", "anime4up-S2",
+            "y8x1c4v.shop"
         )
-    }
+
+    }                                                     // ← انتهِ هنا (نهاية companion object)
 
     // ============================================================
     //  Callback
