@@ -22,6 +22,22 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
 
+/**
+ * ============================================================
+ *  VideoExtractor — النسخة المحسّنة النهائية
+ * ============================================================
+ *
+ * استراتيجية الكشف على 3 طبقات:
+ *   1) حقن Hooks في onPageStarted (fetch/XHR/MediaSource)
+ *   2) اعتراض الشبكة في shouldInterceptRequest
+ *   3) مسح JS متكرر في onPageFinished (backoff تصاعدي)
+ *
+ * يعمل مع:
+ *   - share4max.com, voe.sx, mp4upload.com
+ *   - vkvideo.ru, uqload.vc, playmogo.com
+ *   - rubyvidhub.com, videa.hu
+ *   - HLS مباشر في <video> tag
+ */
 class VideoExtractor(
     private val context: Context,
     private val userAgent: String = DEFAULT_USER_AGENT,
@@ -39,11 +55,14 @@ class VideoExtractor(
         // ✅ 12 ثانية بدل 25
         const val DEFAULT_TIMEOUT_MS = 12_000L
 
+        // عدد محاولات المسح المتكرر (فواصل تصاعدية تصل إلى ~8 ثوان)
+        private const val MAX_SCAN_ATTEMPTS = 12
+
         private val DIRECT_VIDEO_EXTENSIONS = listOf(
             ".m3u8", ".mp4", ".mpd", ".webm", ".mkv", ".ts"
         )
 
-        // ✅ نطاقات معروفة توفر روابط مباشرة عبر XHR/JS وليس in <video src>
+        // نطاقات معروفة توفر روابط مباشرة عبر XHR/JS وليس in <video src>
         private val JS_HEAVY_HOSTS = listOf(
             "voe.sx", "mp4upload.com", "streamruby.com", "rubyvidhub.com",
             "playmogo.com", "dsvplay.com", "uqload.vc", "uqload.is",
@@ -51,12 +70,20 @@ class VideoExtractor(
         )
     }
 
+    // ============================================================
+    //  Callback
+    // ============================================================
+
     interface ExtractionCallback {
         fun onDirectVideo(videoUrl: String, headers: Map<String, String>)
         fun onIframeFallback(iframeUrl: String)
         fun onFailure(reason: String)
         fun onProgress(message: String) {}
     }
+
+    // ============================================================
+    //  الحالة
+    // ============================================================
 
     private var webView: WebView? = null
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -132,7 +159,6 @@ class VideoExtractor(
                 userAgentString = userAgent
                 useWideViewPort = true
                 loadWithOverviewMode = true
-                // ✅ ضروري لمواقع مثل voe.sx التي تستخدم CSP
                 @Suppress("DEPRECATION")
                 allowContentAccess = true
             }
@@ -143,18 +169,17 @@ class VideoExtractor(
             webChromeClient = object : WebChromeClient() {
                 override fun onConsoleMessage(msg: android.webkit.ConsoleMessage): Boolean {
                     val text = msg.message()
-                    if (text.startsWith("[A4UP]")) {
-                        Log.d(TAG, "JS: $text")
-                        // بعض السكربتات المزروعة قد ترسل روابط عبر console
-                        if (text.contains(".m3u8") || text.contains(".mp4")) {
-                            val m = Regex("""https?://[^\s"']+\.(m3u8|mp4|mpd|webm)[^\s"']*""")
-                                .find(text)
-                            m?.value?.let { captured ->
-                                if (!interceptedUrls.contains(captured)) {
-                                    interceptedUrls.add(captured)
-                                    Log.d(TAG, "التقطت من console: $captured")
-                                    finishWith { it.onDirectVideo(captured, buildHeaders()) }
-                                }
+                    // استخراج أي رابط فيديو ذُكر في console.log
+                    if (text.contains(".m3u8") || text.contains(".mp4") ||
+                        text.contains(".mpd") || text.contains(".webm")) {
+                        val m = Regex(
+                            """https?://[^\s"']+\.(m3u8|mp4|mpd|webm)[^\s"']*"""
+                        ).find(text)
+                        m?.value?.let { captured ->
+                            if (!interceptedUrls.contains(captured)) {
+                                interceptedUrls.add(captured)
+                                Log.d(TAG, "التقطت من console: $captured")
+                                finishWith { it.onDirectVideo(captured, buildHeaders()) }
                             }
                         }
                     }
@@ -165,7 +190,7 @@ class VideoExtractor(
             webViewClient = object : WebViewClient() {
 
                 // ============================================================
-                //  ✅ الطبقة 2: اعتراض كل الطلبات (يشمل XHR/fetch/video)
+                //  الطبقة 2: اعتراض كل الطلبات (يشمل XHR/fetch/video)
                 // ============================================================
                 override fun shouldInterceptRequest(
                     view: WebView?,
@@ -181,7 +206,7 @@ class VideoExtractor(
                 }
 
                 // ============================================================
-                //  ✅ الطبقة 1: حقن Hooks قبل تشغيل سكربتات الصفحة
+                //  الطبقة 1: حقن Hooks قبل تشغيل سكربتات الصفحة
                 // ============================================================
                 override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                     super.onPageStarted(view, url, favicon)
@@ -247,7 +272,7 @@ class VideoExtractor(
         if (result.isNullOrBlank()) return null
         val cleaned = result.trim('"', ' ', '\n', '\t')
         if (cleaned.isEmpty() || cleaned == "null") return null
-        // إذا أرجع السكربت مصفوفة مفصولة بفواصل — خذ الأول
+        // إذا أرجع السكربت مصفوفة مفصولة بـ ||| — خذ الأول
         return cleaned.split("|||").firstOrNull()?.takeIf { it.startsWith("http") }
     }
 
@@ -256,8 +281,9 @@ class VideoExtractor(
         "Referer" to originalUrl,
         "Accept" to "*/*",
         "Accept-Language" to "ar,en;q=0.9",
-        "Origin" to runCatching { java.net.URI(originalUrl).let { "${it.scheme}://${it.host}" } }
-            .getOrDefault("")
+        "Origin" to runCatching {
+            java.net.URI(originalUrl).let { "${it.scheme}://${it.host}" }
+        }.getOrDefault("")
     )
 
     private fun isDirectVideoUrl(url: String): Boolean {
@@ -272,7 +298,7 @@ class VideoExtractor(
         runCatching { java.net.URI(url).host ?: url }.getOrDefault(url)
 
     // ============================================================
-    //  سكربت الحقن المبكر — hook fetch/XHR/MediaSource
+    //  سكربت الحقن المبكر — hook fetch/XHR/MediaSource/jwplayer
     // ============================================================
 
     private val EARLY_HOOK_SCRIPT = """
@@ -333,18 +359,22 @@ class VideoExtractor(
                 }
             } catch(e) {}
 
-            // 4) MediaSource.addSourceBuffer
+            // 4) MediaSource.addSourceBuffer — يكشف MIME الخاص بـ HLS
             try {
                 if (window.MediaSource && MediaSource.prototype.addSourceBuffer) {
                     var _addSB = MediaSource.prototype.addSourceBuffer;
                     MediaSource.prototype.addSourceBuffer = function(mime) {
-                        try { console.log('[A4UP]MIME:' + mime); } catch(e) {}
+                        try {
+                            if (mime && mime.indexOf('mpegURL') !== -1) {
+                                console.log('[A4UP]HLS-DETECTED');
+                            }
+                        } catch(e) {}
                         return _addSB.apply(this, arguments);
                     };
                 }
             } catch(e) {}
 
-            // 5) jwplayer config
+            // 5) jwplayer hook
             try {
                 if (window.jwplayer) {
                     var _jw = window.jwplayer;
@@ -358,7 +388,9 @@ class VideoExtractor(
                                         if (item && item.file) a4upReport(item.file);
                                         if (item && item.sources) {
                                             for (var i = 0; i < item.sources.length; i++) {
-                                                if (item.sources[i].file) a4upReport(item.sources[i].file);
+                                                if (item.sources[i].file) {
+                                                    a4upReport(item.sources[i].file);
+                                                }
                                             }
                                         }
                                     } catch(e) {}
@@ -373,7 +405,7 @@ class VideoExtractor(
     """.trimIndent()
 
     // ============================================================
-    //  سكربت المسح المتكرر — DOM + jwplayer + videojs + regex
+    //  سكربت المسح المتكرر — DOM + jwplayer + videojs + regex + window vars
     // ============================================================
 
     private fun buildScanScript(): String = """
@@ -434,7 +466,6 @@ class VideoExtractor(
                 // 5) فحص HTML كامل — بما يشمل <script> والـ inline data
                 try {
                     var html = document.documentElement.innerHTML;
-                    // يقبل m3u8 مع query params أو بدون
                     var re = /(https?:\/\/[^"'\s<>\\]+?\.(?:m3u8|mp4|mpd|webm)(?:\?[^"'\s<>\\]*)?)/gi;
                     var m;
                     while ((m = re.exec(html)) !== null) found.push(m[1]);
@@ -443,7 +474,8 @@ class VideoExtractor(
                 // 6) فحص window scope — بعض المواقع تخزن الرابط في متغير عام
                 try {
                     var keys = ['videoUrl', 'file', 'source', 'hls', 'streamUrl',
-                                'videoSrc', 'playerSrc', 'mediaUrl', 'm3u8'];
+                                'videoSrc', 'playerSrc', 'mediaUrl', 'm3u8',
+                                'video_url', 'hlsUrl'];
                     for (var k = 0; k < keys.length; k++) {
                         try {
                             var val = window[keys[k]];
